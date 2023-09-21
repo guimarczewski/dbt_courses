@@ -1,0 +1,5 @@
+version: 2
+
+seeds:
+  - name: employees
+    description: a manual map of employees to customers

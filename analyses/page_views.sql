@@ -1,3 +1,4 @@
+{#
 {{
     config(
         materialized='incremental'
@@ -34,3 +35,4 @@ joined as (
 )
 
 select * from joined
+#}

@@ -90,4 +90,4 @@ final as (
 
 )
 
-select * from final
+select * from final group by order_id

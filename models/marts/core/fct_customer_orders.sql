@@ -16,7 +16,8 @@ customer_orders as (
 
   select 
 
-    orders.*,
+    orders.order_id,
+    orders.customer_id,
     customers.full_name,
     customers.surname,
     customers.givenname,
@@ -90,4 +91,4 @@ final as (
 
 )
 
-select * from final group by order_id
+select * from final

@@ -1,161 +1,91 @@
--- with statement
+with 
 
-with
+orders as (
 
--- import CTEs
-
-base_customers as ( 
-    
-    select
-        *    
-    from {{source ('jaffle_shop','customers')}}
+  select * from {{ ref('int_orders') }}
 
 ),
-
-orders as ( 
-    
-    select
-        *    
-    from {{source ('jaffle_shop','orders')}} 
-
-),
-
-payments as ( 
-    
-    select
-        *    
-    from {{source ('stripe','payment')}}
-
-),
-
--- logical CTEs
 
 customers as (
-    
-    select
 
-        first_name || ' ' || last_name as name, 
-        *
-
-      from base_customers
-),
-
-a as (
-
-    select 
-
-        row_number() over (
-            partition by user_id 
-            order by order_date, id
-        ) as user_order_seq,
-        *
-      
-    from orders
+  select * from {{ ref('stg_jaffle_shop__customers') }}
 
 ),
 
-b as (
+customer_orders as (
 
-    select 
+  select 
 
-        first_name || ' ' || last_name as name, 
-        * 
-      
-    from base_customers
-),
+    orders.*,
+    customers.full_name,
+    customers.surname,
+    customers.givenname,
 
-customer_order_history as (
+    --- Customer level aggregations
+    min(orders.order_date) over(
+      partition by orders.customer_id
+    ) as customer_first_order_date,
 
-    select
+    min(orders.valid_order_date) over(
+      partition by orders.customer_id
+    ) as customer_first_non_returned_order_date,
 
-        b.id as customer_id,
-        b.name as full_name,
-        b.last_name as surname,
-        b.first_name as givenname,
+    max(orders.valid_order_date) over(
+      partition by orders.customer_id
+    ) as customer_most_recent_non_returned_order_date,
 
-        min(order_date) as first_order_date,
+    count(*) over(
+      partition by orders.customer_id
+    ) as customer_order_count,
 
-        min(case
-            when a.status NOT IN ('returned','return_pending') 
-            then order_date 
-        end) as first_non_returned_order_date,
+    sum(nvl2(orders.valid_order_date, 1, 0)) over(
+      partition by orders.customer_id
+    ) as customer_non_returned_order_count,
 
-        max(case
-            when a.status NOT IN ('returned','return_pending') 
-            then order_date 
-        end) as most_recent_non_returned_order_date,
-        
-        COALESCE(max(user_order_seq),0) as order_count,
-        
-        COALESCE(count(case 
-                        when a.status != 'returned' 
-                        then 1 
-        end),0) as non_returned_order_count,
-        
-        sum(case 
-            when a.status NOT IN ('returned','return_pending') 
-            then ROUND(c.amount/100.0,2) 
-            else 0 
-        end) as total_lifetime_value,
-        
-        sum(case 
-            when a.status NOT IN ('returned','return_pending') 
-            then ROUND(c.amount/100.0,2) else 0 
-        end)
-        /NULLIF(count(case 
-                        when a.status NOT IN ('returned','return_pending') 
-                        then 1 
-                     end),0) 
-        as avg_non_returned_order_value,
-        
-        array_agg(distinct a.id) as order_ids
-    
-    from a
+    sum(nvl2(orders.valid_order_date, orders.order_value_dollars, 0)) over(
+      partition by orders.customer_id
+    ) as customer_total_lifetime_value,
 
-    join b
-    on a.user_id = b.id
+    array_agg(distinct orders.order_id) over(
+      partition by orders.customer_id
+    ) as customer_order_ids
 
-    left outer join payments as c
-    on a.id = c.orderid
-
-    where a.status not in ('pending') and c.status != 'fail'
-
-    group by b.id, b.name, b.last_name, b.first_name
+  from orders
+  inner join customers
+    on orders.customer_id = customers.customer_id
 
 ),
 
--- final CTE
+add_avg_order_values as (
+
+  select
+
+    *,
+
+    customer_total_lifetime_value / customer_non_returned_order_count 
+    as customer_avg_non_returned_order_value
+
+  from customer_orders
+
+),
 
 final as (
 
-    select 
+  select 
 
-        orders.id as order_id,
-        orders.user_id as customer_id,
-        last_name as surname,
-        first_name as givenname,
-        first_order_date,
-        order_count,
-        total_lifetime_value,
-        round(amount/100.0,2) as order_value_dollars,
-        orders.status as order_status,
-        payments.status as payment_status
+    order_id,
+    customer_id,
+    surname,
+    givenname,
+    customer_first_order_date as first_order_date,
+    customer_order_count as order_count,
+    customer_total_lifetime_value as total_lifetime_value,
+    order_value_dollars,
+    order_status,
+    payment_status
 
-    from orders
-
-    join customers
-    on orders.user_id = customers.id
-
-    join customer_order_history
-    on orders.user_id = customer_order_history.customer_id
-
-    left outer join payments
-    on orders.id = payments.orderid
-
-    where payments.status != 'fail'
+  from add_avg_order_values
 
 )
-
--- simple select statement
 
 select * from final

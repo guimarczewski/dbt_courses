@@ -38,13 +38,15 @@ customer_orders as (
       partition by orders.customer_id
     ) as customer_order_count,
 
-    sum(nvl2(orders.valid_order_date, 1, 0)) over(
-      partition by orders.customer_id
-    ) as customer_non_returned_order_count,
+    coalesce(count(case
+        when orders.valid_order_date is not null
+        then 1
+    end),0) as non_returned_order_count,
 
-    sum(nvl2(orders.valid_order_date, orders.order_value_dollars, 0)) over(
-      partition by orders.customer_id
-    ) as customer_total_lifetime_value,
+    sum(case
+        when orders.valid_order_date is not null
+        then orders.order_value_dollars else 0
+    end) as total_lifetime_value,
 
     array_agg(distinct orders.order_id) over(
       partition by orders.customer_id

@@ -4,7 +4,7 @@ with
 
 source as (
 
-    select * from {{ source('jaffle_shop', 'orders') }}
+    select * from {{source ('jaffle_shop','orders')}}
 
 ),
 
@@ -23,7 +23,7 @@ transformed as (
 
     from
 
-        base_orders
+        source
 
 )
 

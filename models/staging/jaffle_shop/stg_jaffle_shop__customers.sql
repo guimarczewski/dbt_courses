@@ -17,7 +17,7 @@ transformed as (
 
     from
 
-        base_customers
+        source
 
 )
 

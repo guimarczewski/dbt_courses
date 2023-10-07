@@ -1,4 +1,4 @@
-{# in dbt Develop 
+{# in dbt Develop #}
 
 {% set old_etl_relation=adapter.get_relation(
       database=target.database,
@@ -13,5 +13,3 @@
     b_relation=dbt_relation,
     primary_key="order_id"
 ) }}
-
-#}

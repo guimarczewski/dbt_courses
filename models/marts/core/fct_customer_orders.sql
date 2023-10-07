@@ -57,6 +57,8 @@ customer_orders as (
   inner join customers
     on orders.customer_id = customers.customer_id
 
+  order by order_id
+
 ),
 
 add_avg_order_values as (
